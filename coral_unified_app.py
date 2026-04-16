@@ -305,7 +305,7 @@ class LocalMemoryManager:
     def sync_to_cloud(self) -> Dict:
         """Sincroniza datos locales a Supabase"""
         if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
-            return {"status": "error", "message": "Supabase no configurado"}
+            return {"status": "skipped", "message": "Supabase no configurado - modo offline", "synced": 0}
         
         headers = {
             "apikey": Config.SUPABASE_KEY,
@@ -371,7 +371,7 @@ class LocalMemoryManager:
     def sync_from_cloud(self) -> Dict:
         """Descarga datos de Supabase a local"""
         if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
-            return {"status": "error", "message": "Supabase no configurado"}
+            return {"status": "skipped", "message": "Supabase no configurado - modo offline", "downloaded": 0}
         
         headers = {
             "apikey": Config.SUPABASE_KEY,
@@ -450,6 +450,22 @@ class LocalMemoryManager:
     
     def get_sync_status(self) -> Dict:
         """Obtiene estado de sincronización"""
+        # Si no hay Supabase, retornar estado offline
+        if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
+            try:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                cursor.execute('SELECT COUNT(*) FROM memory_entries')
+                total_local = cursor.fetchone()[0]
+                conn.close()
+                return {
+                    "pending_sync": 0,
+                    "total_local": total_local,
+                    "mode": "offline",
+                    "last_sync": {"time": None, "direction": None, "count": 0, "status": "offline"}
+                }
+            except:
+                return {"error": "offline", "total_local": 0}
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -1717,5 +1733,66 @@ def main():
     except KeyboardInterrupt:
         print("\n[OK] Servidor detenido")
 
+# Variable app para Gunicorn (producción)
+app = None
+
+def create_app():
+    """Factory para crear la aplicación (usado por Gunicorn)"""
+    global app
+    
+    # Inicializar memoria
+    memory = LocalMemoryManager()
+    
+    # Crear app web
+    web_app = CoralWebApp(memory)
+    
+    # Iniciar sync en background
+    def auto_sync():
+        while True:
+            time.sleep(Config.SYNC_INTERVAL)
+            print("[AUTO SYNC] Iniciando sincronización...")
+            result = memory.sync_to_cloud()
+            print(f"[AUTO SYNC] Resultado: {result.get('message', 'N/A')}")
+    
+    sync_thread = threading.Thread(target=auto_sync, daemon=True)
+    sync_thread.start()
+    
+    app = web_app.app
+    return app
+
+# Crear app para Gunicorn (con manejo de errores)
+try:
+    application = create_app()
+    app = application
+    print("[OK] App creada exitosamente para Gunicorn")
+except Exception as e:
+    print(f"[ERROR] Fallo al crear app: {e}")
+    # Crear app mínima para que Gunicorn no falle
+    from flask import Flask
+    app = Flask(__name__)
+    
+    @app.route('/')
+    def error_page():
+        return f"<h1>Error al iniciar CORAL</h1><p>{e}</p><p>Verifica las variables de entorno</p>", 500
+    
+    @app.route('/api/status')
+    def error_status():
+        return {"status": "error", "message": str(e)}, 500
+
 if __name__ == "__main__":
-    main()
+    # Configurar puerto desde variable de entorno (para Render)
+    port = int(os.getenv('PORT', Config.API_PORT))
+    Config.API_PORT = port
+    
+    print(f"\n[OK] Sistema listo")
+    print(f"[WEB] Abre tu navegador en: http://localhost:{port}")
+    print(f"[WEB] Dashboard: http://localhost:{port}/")
+    print(f"[WEB] API Docs: http://localhost:{port}/api/status")
+    print(f"\n[CONFIG] Sincronización automática cada {Config.SYNC_INTERVAL//60} minutos")
+    print("\nPresiona Ctrl+C para detener\n")
+    
+    # Iniciar servidor
+    try:
+        app.run(host=Config.API_HOST, port=port, debug=False)
+    except KeyboardInterrupt:
+        print("\n[OK] Servidor detenido")
