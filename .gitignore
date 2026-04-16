@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+dist_v53/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables (IMPORTANTE - Nunca subir)
+.env
+.env.local
+.env.*.local
+
+# SQLite databases (ephemeral, se recrea)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Cache
+coral_cache.json
+coral_v52_cache.json
+*.cache
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporales
+temp/
+tmp/
+*.tmp
+
+# Exports y backups
+deleted_entries_*.json
+deletes_*.json
+batch_results.json
+*.bak
+*.backup
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Render/Deploy
+.render/
