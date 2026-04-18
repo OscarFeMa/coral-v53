@@ -1757,6 +1757,37 @@ def create_app():
     sync_thread = threading.Thread(target=auto_sync, daemon=True)
     sync_thread.start()
     
+    # PING AUTOMÁTICO cada 14 minutos para mantener Render activo
+    def keep_alive_ping():
+        """Hace ping a sí mismo cada 14 minutos para evitar sleep de Render"""
+        import requests
+        import os
+        
+        # Esperar 2 minutos antes del primer ping (para que el servidor arranque)
+        time.sleep(120)
+        
+        # Detectar URL propia
+        render_url = os.getenv('RENDER_EXTERNAL_URL')
+        if render_url:
+            ping_url = f"{render_url}/api/status"
+        else:
+            # Fallback a localhost
+            ping_url = f"http://localhost:{Config.API_PORT}/api/status"
+        
+        print(f"[KEEP ALIVE] Iniciando pings cada 14 min a: {ping_url}")
+        
+        while True:
+            try:
+                time.sleep(14 * 60)  # 14 minutos
+                response = requests.get(ping_url, timeout=10)
+                print(f"[KEEP ALIVE] Ping exitoso: {response.status_code}")
+            except Exception as e:
+                print(f"[KEEP ALIVE] Ping falló (normal al inicio): {e}")
+    
+    keep_alive_thread = threading.Thread(target=keep_alive_ping, daemon=True)
+    keep_alive_thread.start()
+    print("[OK] Keep-alive activado (ping cada 14 minutos)")
+    
     app = web_app.app
     return app
 
